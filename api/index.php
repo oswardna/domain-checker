@@ -37,114 +37,27 @@ function httpGet($url, $timeout = 3)
 {
     if (!function_exists('curl_init')) return null;
     $ch = curl_init();
-    <style>
-    :root{
-        --bg: #f7f9fc;
-        --card: #ffffff;
-        --muted: #6b7a8f;
-        --text: #1a1a2e;
-        --accent: #2563eb;
-        --ok: #16a34a;
-        --warn: #d97706;
-        --danger: #dc2626;
-        --glass: rgba(37,99,235,0.06);
-        --radius-lg: 16px;
-        --radius-md: 10px;
-        --gap: 18px;
-    }
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => $timeout,
+        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => 0,
+        CURLOPT_USERAGENT      => 'DomainIntelligenceChecker/2.0',
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_MAXREDIRS      => 0,
+        CURLOPT_ENCODING       => '',
+    ]);
+    $res = curl_exec($ch);
+    return $res ?: null;
+}
 
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{
-        font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-        background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;padding:0
-    }
-    .container{max-width:1100px;margin:0 auto;padding:28px 18px 56px}
-
-    /* Header */
-    .header{background:var(--card);border-radius:var(--radius-lg);padding:36px 20px;margin-bottom:20px;border:1px solid #e9eef4;box-shadow:0 6px 18px rgba(15,23,42,0.03);text-align:center}
-    .logo{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:12px;color:var(--muted);text-transform:uppercase}
-    .logo span{color:var(--accent)}
-    .header h1{font-size:28px;margin:6px 0 2px;font-weight:800}
-    .header h1 span{color:var(--accent)}
-    .header .sub{color:var(--muted);font-size:13px}
-
-    /* Search */
-    .search-wrap{max-width:760px;margin:0 auto 18px}
-    .search-form{display:flex;gap:10px;background:transparent;padding:6px;border-radius:14px}
-    .search-form input{flex:1;padding:14px 16px;border-radius:12px;border:1px solid #e6edf6;background:var(--card);outline:none;font-family:'JetBrains Mono',monospace}
-    .search-form input:focus{box-shadow:0 6px 18px var(--glass);border-color:var(--accent)}
-    .search-form button{background:var(--accent);color:#fff;border:none;padding:12px 20px;border-radius:12px;font-weight:700;cursor:pointer}
-    .search-form button:hover{filter:brightness(.96);transform:translateY(-1px)}
-    .search-hints{display:flex;gap:8px;justify-content:center;margin-top:12px}
-    .hint-chip{background:var(--card);border:1px solid #e6edf6;padding:6px 12px;border-radius:999px;font-family:'JetBrains Mono',monospace}
-
-    /* Alerts */
-    .alert{max-width:760px;margin:12px auto;padding:12px 16px;border-radius:12px;font-weight:600}
-    .alert-error{background:#fff5f5;border:1px solid #fee2e2;color:var(--danger)}
-    .alert-success{background:#f6fffa;border:1px solid #daf7dd;color:var(--ok)}
-
-    /* Results */
-    .results{animation:fadeIn .22s ease}
-    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-
-    /* Hero */
-    .hero{display:grid;grid-template-columns:1fr 120px;gap:18px;background:var(--card);padding:22px;border-radius:14px;border:1px solid #eef4fb}
-    .domain{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700}
-    .domain .src{font-size:11px;font-weight:700;color:var(--accent);background:#eff6ff;padding:4px 8px;border-radius:8px;margin-left:10px}
-    .domain-meta{color:var(--muted);margin-top:8px;font-size:13px}
-    .expiry{text-align:right}
-    .expiry .num{font-family:'JetBrains Mono',monospace;font-size:36px;font-weight:700}
-    .expiry .lbl{font-size:11px;color:var(--muted);margin-top:4px}
-    .expiry-bar{grid-column:1/-1;margin-top:12px}
-    .track{height:6px;background:#eef4fb;border-radius:8px;overflow:hidden}
-    .fill{height:100%;transition:width .6s ease}
-    .fill-ok{background:var(--ok)}.fill-warn{background:var(--warn)}.fill-danger{background:var(--danger)}.fill-muted{background:#dfe7f0}
-
-    /* Grid & Cards */
-    .grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-bottom:20px}
-    .card{background:var(--card);padding:18px;border-radius:12px;border:1px solid #eef4fb}
-    .card-head{display:flex;align-items:center;gap:8px;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid #f1f6fb}
-    .card-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase}
-
-    .field{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;margin-bottom:10px;align-items:start}
-    .field-lbl{color:var(--muted);font-size:12px}
-    .field-val{font-size:13px;color:var(--text);word-break:break-word}
-    .field-val.mono{font-family:'JetBrains Mono',monospace}
-
-    /* Badges & copy */
-    .badge{display:inline-block;padding:4px 10px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px}
-    .badge-ok{background:#e6f9ef;color:var(--ok)}.badge-default{background:#f7fafc;color:var(--muted);border:1px solid #eef4fb}
-    .copy-btn{background:none;border:none;color:#9aa9b9;cursor:pointer}
-
-    /* Tabs */
-    .tabs{border-radius:12px;overflow:hidden;border:1px solid #eef4fb;background:var(--card)}
-    .tab-bar{display:flex;gap:6px;padding:8px;background:transparent;overflow:auto}
-    .tab-btn{padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-weight:700;cursor:pointer}
-    .tab-btn.active{background:linear-gradient(180deg,#f0f6ff,transparent);color:var(--accent);box-shadow:0 6px 14px var(--glass)}
-    .tab-pane{display:none;padding:18px}
-    .tab-pane.active{display:block}
-
-    /* DNS */
-    .dns-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-    .dns-card{background:#fbfdff;border-radius:10px;padding:12px;border:1px solid #eef4fb}
-    .dns-record{font-family:'JetBrains Mono',monospace;padding:6px 0;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f1f6fb}
-
-    /* Raw WHOIS */
-    pre.raw{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;padding:16px;background:#fbfdff;border-radius:10px;max-height:420px;overflow:auto;border:1px solid #eef4fb}
-
-    /* Footer */
-    .footer{color:var(--muted);text-align:center;margin-top:40px;padding-top:18px}
-
-    /* Responsive */
-    @media(max-width:720px){
-        .hero{grid-template-columns:1fr;gap:12px}
-        .expiry{text-align:left}
-        .search-form{flex-direction:column}
-        .search-form input{width:100%}
-        .field{grid-template-columns:1fr}
-        .tab-bar{gap:8px;padding:10px}
-    }
-    </style>
+// =============================================================
+// RDAP
+// =============================================================
+function lookupRDAP($domain)
+{
     $urls = [
         "https://rdap.org/domain/" . urlencode($domain),
         "https://rdap.iana.org/domain/" . urlencode($domain),
