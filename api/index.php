@@ -1731,7 +1731,24 @@ pre.raw {
                         <span class="step-name">Available</span>
                         <span class="step-duration">— Becomes available</span>
                     </div>
-           
+                </div>
+
+                <?php if (!empty($result['nameservers'])): ?>
+                <div style="margin-top: 16px;">
+                   
+                    <?php foreach ($result['nameservers'] as $ns): ?>
+                    <div class="field">
+                        <span class="field-lbl">NS</span>
+                        <span class="field-val mono">
+                            <?= htmlspecialchars($ns) ?>
+                            <button class="copy-btn" data-copy="<?= htmlspecialchars($ns) ?>" title="Copy">📋</button>
+                        </span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
 
         <!-- Tabs -->
         <div class="tabs">
