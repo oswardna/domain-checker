@@ -359,6 +359,47 @@ function colorClass($days)
     return 'ok';
 }
 
+// ---- Input cleaning and helpers ----
+function cleanDomain($d)
+{
+    $d = strtolower(trim($d));
+    $d = preg_replace('#^https?://#', '', $d);
+    $d = preg_replace('#^www\.#', '', $d);
+    $d = strtok($d, '/?#');
+    $d = rtrim($d, '.');
+    return substr($d, 0, 253);
+}
+
+function isValidDomain($d)
+{
+    return (bool) preg_match('/^(?!-)(?:[a-z0-9\-]{1,63}\.)+[a-z]{2,}$/i', $d);
+}
+
+function getTLD($domain)
+{
+    $p = explode('.', $domain);
+    return count($p) >= 2 ? end($p) : '';
+}
+
+function timeDiff($date, $future = true)
+{
+    if (!$date) return null;
+    $timestamp = strtotime($date);
+    if (!$timestamp) return null;
+    $diff = $future ? ($timestamp - time()) : (time() - $timestamp);
+    if ($diff < 0 && $future) return 'Expired';
+    $years = floor($diff / (365.25 * 86400));
+    $months = floor(fmod($diff, 365.25 * 86400) / (30.44 * 86400));
+    $days = floor(fmod($diff, 30.44 * 86400) / 86400);
+    $parts = [];
+    if ($years > 0) $parts[] = $years . 'y';
+    if ($months > 0) $parts[] = $months . 'mo';
+    if ($days > 0 || empty($parts)) $parts[] = $days . 'd';
+    return implode(' ', $parts);
+}
+
+function getDomainAge($created) { return $created ? timeDiff($created, false) : null; }
+
 // =============================================================
 // MAIN
 // =============================================================
