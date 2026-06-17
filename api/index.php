@@ -1702,42 +1702,7 @@ pre.raw {
                 </div>
             </div>
 
-            <!-- Status -->
-            <div class="card">
-                <div class="card-head"><span class="ico">🛡️</span><span class="card-title">EPP Status</span></div>
-                <?php
-                    $statuses = array_filter($result['status'] ?? [], function($s) {
-                        return !in_array($s, ['available','registered']);
-                    });
-                ?>
-                <?php if ($statuses): ?>
-                    <div class="badges-wrap">
-                        <?php foreach ($statuses as $s): ?>
-                            <?= statusBadge($s) ?>
-                        <?php endforeach; ?>
-                    </div>
-                <?php else: ?>
-                    <span class="na">No status codes available</span>
-                <?php endif; ?>
 
-                <?php if (!empty($result['nameservers'])): ?>
-                <div style="margin-top: 16px;">
-                    <div class="card-head" style="padding-bottom: 10px; margin-bottom: 12px;">
-                        <span class="ico">🌐</span>
-                        <span class="card-title">Nameservers <span class="count"><?= count($result['nameservers']) ?></span></span>
-                    </div>
-                    <?php foreach ($result['nameservers'] as $ns): ?>
-                    <div class="field">
-                        <span class="field-lbl">NS</span>
-                        <span class="field-val mono">
-                            <?= htmlspecialchars($ns) ?>
-                            <button class="copy-btn" data-copy="<?= htmlspecialchars($ns) ?>" title="Copy">📋</button>
-                        </span>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-                <?php endif; ?>
-            </div>
         </div>
 
         <!-- Tabs -->
@@ -1747,7 +1712,6 @@ pre.raw {
                 <?php if (!empty($subdomains)): ?>
                 <button class="tab-btn" data-tab="subs">Subdomains <span class="count"><?= count($subdomains) ?></span></button>
                 <?php endif; ?>
-                <button class="tab-btn" data-tab="contacts">Contacts</button>
                 <?php if (!empty($result['raw'])): ?>
                 <button class="tab-btn" data-tab="raw">Raw WHOIS</button>
                 <?php endif; ?>
@@ -1832,29 +1796,6 @@ pre.raw {
             </div>
             <?php endif; ?>
 
-            <!-- Contacts -->
-            <div class="tab-pane" id="tab-contacts">
-                <div class="grid-3" style="margin-bottom: 0;">
-                    <div>
-                        <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px;">👤 Registrant</div>
-                        <div class="field"><span class="field-lbl">Name</span><span class="field-val"><?= !empty($result['registrant']) ? htmlspecialchars($result['registrant']) : '<span class="na">Redacted</span>' ?></span></div>
-                        <div class="field"><span class="field-lbl">Organisation</span><span class="field-val"><?= !empty($result['registrant_org']) ? htmlspecialchars($result['registrant_org']) : '<span class="na">—</span>' ?></span></div>
-                        <div class="field"><span class="field-lbl">Email</span><span class="field-val mono"><?= !empty($result['registrant_email']) ? htmlspecialchars($result['registrant_email']) : '<span class="na">—</span>' ?></span></div>
-                        <div class="field"><span class="field-lbl">Phone</span><span class="field-val mono"><?= !empty($result['registrant_phone']) ? htmlspecialchars($result['registrant_phone']) : '<span class="na">—</span>' ?></span></div>
-                        <div class="field"><span class="field-lbl">Country</span><span class="field-val"><?= !empty($result['registrant_country']) ? htmlspecialchars($result['registrant_country']) : '<span class="na">—</span>' ?></span></div>
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px;">🔧 Admin Contact</div>
-                        <div class="field"><span class="field-lbl">Name</span><span class="field-val"><?= !empty($result['admin']) ? htmlspecialchars($result['admin']) : '<span class="na">—</span>' ?></span></div>
-                        <div class="field"><span class="field-lbl">Email</span><span class="field-val mono"><?= !empty($result['admin_email']) ? htmlspecialchars($result['admin_email']) : '<span class="na">—</span>' ?></span></div>
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px;">⚙️ Tech Contact</div>
-                        <div class="field"><span class="field-lbl">Name</span><span class="field-val"><?= !empty($result['tech']) ? htmlspecialchars($result['tech']) : '<span class="na">—</span>' ?></span></div>
-                        <div class="field"><span class="field-lbl">Email</span><span class="field-val mono"><?= !empty($result['tech_email']) ? htmlspecialchars($result['tech_email']) : '<span class="na">—</span>' ?></span></div>
-                    </div>
-                </div>
-            </div>
 
             <!-- Raw WHOIS -->
             <?php if (!empty($result['raw'])): ?>
