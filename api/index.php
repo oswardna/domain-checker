@@ -1702,23 +1702,36 @@ pre.raw {
                 </div>
             </div>
 
-            <!-- Status -->
+            <!-- Domain lifecycle -->
             <div class="card">
-                <div class="card-head"><span class="ico">🛡️</span><span class="card-title">EPP Status</span></div>
-                <?php
-                    $statuses = array_filter($result['status'] ?? [], function($s) {
-                        return !in_array($s, ['available','registered']);
-                    });
-                ?>
-                <?php if ($statuses): ?>
-                    <div class="badges-wrap">
-                        <?php foreach ($statuses as $s): ?>
-                            <?= statusBadge($s) ?>
-                        <?php endforeach; ?>
+                <div class="card-head"><span class="ico">⏳</span><span class="card-title">Domain Lifecycle</span></div>
+
+                <div class="lifecycle-wrap">
+                    <div class="lifecycle-step">
+                        <span class="step-name">Registered</span>
+                        <span class="step-duration">— Until expiry (variable)</span>
                     </div>
-                <?php else: ?>
-                    <span class="na">No status codes available</span>
-                <?php endif; ?>
+                    <div class="lifecycle-step">
+                        <span class="step-name">Expired</span>
+                        <span class="step-duration">— Immediate after expiry</span>
+                    </div>
+                    <div class="lifecycle-step">
+                        <span class="step-name">Grace Period</span>
+                        <span class="step-duration">— 0–45 days (registrar dependent)</span>
+                    </div>
+                    <div class="lifecycle-step">
+                        <span class="step-name">Redemption</span>
+                        <span class="step-duration">— ~30 days (restorable)</span>
+                    </div>
+                    <div class="lifecycle-step">
+                        <span class="step-name">Pending Delete</span>
+                        <span class="step-duration">— 5 days</span>
+                    </div>
+                    <div class="lifecycle-step">
+                        <span class="step-name">Available</span>
+                        <span class="step-duration">— Becomes available for registration</span>
+                    </div>
+                </div>
 
                 <?php if (!empty($result['nameservers'])): ?>
                 <div style="margin-top: 16px;">
