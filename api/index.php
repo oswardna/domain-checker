@@ -33,7 +33,7 @@ function checkRateLimit($maxRequests = 15, $windowSeconds = 60) {
 }
 
 // ---- HTTP helper ----
-function httpGet($url, $timeout = 3)
+function httpGet($url, $timeout = 6)
 {
     if (!function_exists('curl_init')) return null;
     $ch = curl_init();
@@ -41,16 +41,338 @@ function httpGet($url, $timeout = 3)
         CURLOPT_URL            => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => $timeout,
-        CURLOPT_CONNECTTIMEOUT => 2,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => 0,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_USERAGENT      => 'DomainIntelligenceChecker/2.0',
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_MAXREDIRS      => 0,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 3,
         CURLOPT_ENCODING       => '',
     ]);
     $res = curl_exec($ch);
+    curl_close($ch);
     return $res ?: null;
+}
+
+// ---- DNS lookup ----
+function getDNSRecords($domain)
+{
+    $records = [];
+    $allRecords = [];
+
+    $native = @dns_get_record($domain, DNS_ALL);
+    if ($native) {
+        $allRecords = array_merge($allRecords, $native);
+    }
+
+    $safeDomain = escapeshellarg($domain);
+    if (function_exists('shell_exec')) {
+        $output = @shell_exec("dig +short +time=2 +tries=1 {$safeDomain} A 2>/dev/null");
+        if ($output) {
+            foreach (array_filter(explode("\n", trim($output))) as $ip) {
+                $ip = trim($ip);
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    $allRecords[] = ['type' => 'A', 'ip' => $ip, 'ttl' => 300];
+                }
+            }
+        }
+
+        $output = @shell_exec("dig +short +time=2 +tries=1 {$safeDomain} AAAA 2>/dev/null");
+        if ($output) {
+            foreach (array_filter(explode("\n", trim($output))) as $ip) {
+                $ip = trim($ip);
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                    $allRecords[] = ['type' => 'AAAA', 'ipv6' => $ip, 'ttl' => 300];
+                }
+            }
+        }
+    }
+
+    $seen = [];
+    foreach ($allRecords as $r) {
+        $type = $r['type'] ?? '';
+        if ($type === 'A' && !empty($r['ip'])) {
+            $key = 'A_' . $r['ip'];
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $records['A'][] = ['ip' => $r['ip'], 'ttl' => $r['ttl'] ?? 300];
+            }
+        } elseif ($type === 'AAAA' && !empty($r['ipv6'])) {
+            $key = 'AAAA_' . $r['ipv6'];
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $records['AAAA'][] = ['ip' => $r['ipv6'], 'ttl' => $r['ttl'] ?? 300];
+            }
+        } elseif ($type === 'MX' && !empty($r['target'])) {
+            $key = 'MX_' . $r['target'];
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $records['MX'][] = ['pri' => $r['pri'] ?? 10, 'target' => $r['target'], 'ttl' => $r['ttl'] ?? 300];
+            }
+        } elseif ($type === 'NS' && !empty($r['target'])) {
+            $key = 'NS_' . $r['target'];
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $records['NS'][] = ['target' => $r['target'], 'ttl' => $r['ttl'] ?? 300];
+            }
+        } elseif ($type === 'TXT' && !empty($r['txt'])) {
+            $key = 'TXT_' . md5($r['txt']);
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $records['TXT'][] = ['txt' => $r['txt'], 'ttl' => $r['ttl'] ?? 300];
+            }
+        } elseif ($type === 'CNAME' && !empty($r['target'])) {
+            $records['CNAME'] = ['target' => $r['target'], 'ttl' => $r['ttl'] ?? 300];
+        } elseif ($type === 'SOA') {
+            $records['SOA'] = $r;
+        }
+    }
+
+    if (!empty($records['MX'])) {
+        usort($records['MX'], fn($a, $b) => $a['pri'] - $b['pri']);
+    }
+
+    return $records;
+}
+
+// ---- Subdomain enumeration ----
+function getSubdomains($domain)
+{
+    $subdomains = [];
+    
+    $common = [
+        'www', 'mail', 'ftp', 'localhost', 'webmail', 'smtp', 'pop', 'ns1', 'webdisk',
+        'ns2', 'cpanel', 'whm', 'autodiscover', 'autoconfig', 'm', 'imap', 'test',
+        'ns', 'blog', 'pop3', 'dev', 'www2', 'admin', 'forum', 'news', 'vpn', 'ns3',
+        'mail2', 'new', 'mysql', 'old', 'lists', 'support', 'mobile', 'mx', 'static',
+        'docs', 'beta', 'shop', 'sql', 'secure', 'demo', 'cp', 'calendar', 'wiki',
+        'web', 'media', 'email', 'images', 'img', 'download', 'dns', 'piwik', 'stats',
+        'dashboard', 'portal', 'manage', 'start', 'info', 'apps', 'app', 'api',
+        'cdn', 'files', 'upload', 'backup', 'db', 'remote', 'ssh', 'git', 'svn',
+        'jenkins', 'jira', 'confluence', 'gitlab', 'monitor', 'status', 'uptime',
+        'chat', 'irc', 'xmpp', 'proxy', 'cache', 'static', 'assets', 'res',
+        'stage', 'staging', 'test', 'testing', 'qa', 'uat', 'dev', 'development',
+        'staging', 'sandbox', 'playground', 'demo', 'preprod', 'prod', 'production',
+        'internal', 'external', 'public', 'private', 'corp', 'corporate', 'company',
+        'portal', 'gateway', 'hub', 'dashboard', 'admin', 'manager', 'control',
+        'ns1', 'ns2', 'ns3', 'ns4', 'dns1', 'dns2', 'dns3',
+        'mx', 'mx1', 'mx2', 'mx3', 'mailserver', 'exchange',
+        'ftp', 'sftp', 'ftps', 'file', 'files',
+        'vpn', 'vpn1', 'vpn2', 'openvpn', 'pptp', 'l2tp',
+        'blog', 'blogs', 'wordpress', 'wp', 'cms',
+        'shop', 'store', 'checkout', 'cart', 'payment', 'payments',
+        'api', 'rest', 'soap', 'graphql', 'swagger', 'docs', 'documentation',
+        'cdn', 'media', 'static', 'assets', 'img', 'images', 'video', 'videos',
+        'download', 'downloads', 'upload', 'uploads', 'share', 'shares',
+        'monitor', 'monitoring', 'status', 'uptime', 'health', 'alerts',
+        'chat', 'irc', 'xmpp', 'slack', 'discord', 'mattermost',
+        'git', 'gitlab', 'github', 'bitbucket', 'svn', 'jenkins', 'jira', 'confluence',
+        'analytics', 'stats', 'metrics', 'logs', 'logging',
+        'backup', 'backups', 'restore', 'recovery',
+        'cache', 'caching', 'proxy', 'proxies', 'loadbalancer', 'lb',
+        'web', 'webserver', 'http', 'https', 'ssl', 'tls',
+        'db', 'database', 'mysql', 'postgres', 'postgresql', 'mongodb', 'redis',
+        'elastic', 'elasticsearch', 'kibana', 'grafana', 'prometheus',
+        'kafka', 'rabbitmq', 'mqtt', 'amqp',
+        'docker', 'k8s', 'kubernetes', 'openshift', 'swarm',
+        'cloud', 'aws', 'azure', 'gcp', 'google', 'amazon',
+        'security', 'firewall', 'ids', 'ips', 'waf',
+        'ad', 'ldap', 'kerberos', 'radius', 'ntp', 'sip', 'voip',
+        'asterisk', 'pbx', 'freepbx', 'elastix',
+        'odoo', 'erp', 'crm', 'sales', 'marketing', 'analytics',
+        'research', 'lab', 'science', 'tech', 'innovation',
+        'learn', 'training', 'courses', 'academy', 'university'
+    ];
+
+    foreach ($common as $sub) {
+        $full = $sub . '.' . $domain;
+        $ip = @gethostbyname($full);
+        if ($ip && $ip !== $full) {
+            $subdomains[$full] = [
+                'source' => 'DNS Brute',
+                'ip' => $ip,
+                'resolved' => true
+            ];
+        }
+    }
+
+    $count = 0;
+    foreach ($subdomains as $host => &$info) {
+        if ($count >= 10) break;
+        if (!empty($info['ip'])) {
+            $asnInfo = getASNInfoFast($info['ip']);
+            if ($asnInfo) {
+                $info['asn'] = $asnInfo['asn'] ?? null;
+                $info['asn_name'] = $asnInfo['name'] ?? null;
+            }
+            $count++;
+        }
+    }
+
+    ksort($subdomains);
+    return $subdomains;
+}
+
+// ---- ASN/ISP lookup ----
+function getASNInfoFast($ip)
+{
+    if (!filter_var($ip, FILTER_VALIDATE_IP)) return null;
+    
+    $response = httpGet("https://ipinfo.io/{$ip}/json", 3);
+    if (!$response) return null;
+    $data = json_decode($response, true);
+    if (!$data) return null;
+    $info = [];
+    if (!empty($data['org'])) {
+        if (preg_match('/^AS(\d+)\s+(.+)$/', $data['org'], $matches)) {
+            $info['asn'] = 'AS' . $matches[1];
+            $info['name'] = $matches[2];
+        } else {
+            $info['name'] = $data['org'];
+        }
+    }
+    return $info ?: null;
+}
+
+// ---- Extract Registrar URL ----
+function extractRegistrarUrl($raw, $registrar)
+{
+    $url = null;
+    
+    if (!empty($raw)) {
+        $patterns = [
+            '/Registrar URL:\s*(.+)/i',
+            '/Registrar URL\s*:\s*(.+)/i',
+            '/URL of the Registrar:\s*(.+)/i',
+            '/Registrar Website:\s*(.+)/i',
+            '/Registrar Homepage:\s*(.+)/i',
+            '/http[s]?:\/\/[^\s]+/i',
+        ];
+        
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $raw, $matches)) {
+                $found = trim($matches[1]);
+                if (filter_var($found, FILTER_VALIDATE_URL) || strpos($found, 'http') === 0) {
+                    $url = $found;
+                    break;
+                }
+                if (strpos($found, '.') !== false && strpos($found, ' ') === false) {
+                    $url = 'https://' . $found;
+                    break;
+                }
+            }
+        }
+        
+        if (!$url) {
+            preg_match_all('/https?:\/\/[^\s\n\r]+/i', $raw, $links);
+            if (!empty($links[0])) {
+                $registrarKeywords = ['registrar', 'whois', 'domain', 'register', 'nic', 'registry'];
+                foreach ($links[0] as $link) {
+                    $linkLower = strtolower($link);
+                    foreach ($registrarKeywords as $keyword) {
+                        if (strpos($linkLower, $keyword) !== false) {
+                            $url = $link;
+                            break 2;
+                        }
+                    }
+                }
+                if (!$url) {
+                    $url = $links[0][0];
+                }
+            }
+        }
+    }
+    
+    if (!$url && $registrar) {
+        $map = [
+            'godaddy'=>'https://www.godaddy.com',
+            'namecheap'=>'https://www.namecheap.com',
+            'google'=>'https://domains.google',
+            'cloudflare'=>'https://www.cloudflare.com/registrar/',
+            'enom'=>'https://www.enom.com',
+            'network solutions'=>'https://www.networksolutions.com',
+            'ionos'=>'https://www.ionos.com',
+            'name.com'=>'https://www.name.com',
+            'hover'=>'https://www.hover.com',
+            'gandi'=>'https://www.gandi.net',
+            'ovh'=>'https://www.ovh.com',
+            'markmonitor'=>'https://www.markmonitor.com',
+            'dynadot'=>'https://www.dynadot.com',
+            'porkbun'=>'https://porkbun.com',
+            'bluehost'=>'https://www.bluehost.com',
+            'hostgator'=>'https://www.hostgator.com',
+            'dreamhost'=>'https://www.dreamhost.com',
+            'register.com'=>'https://www.register.com',
+            'eurodns'=>'https://www.eurodns.com',
+            'csc'=>'https://www.cscglobal.com',
+            'safenames'=>'https://www.safenames.net',
+            'key-systems'=>'https://www.key-systems.net',
+            'internet.bs'=>'https://internetbs.net',
+        ];
+        $lower = strtolower($registrar);
+        foreach ($map as $key => $mapUrl) {
+            if (strpos($lower, $key) !== false) return $mapUrl;
+        }
+    }
+    
+    return $url;
+}
+
+// ---- Input cleaning ----
+function cleanDomain($d)
+{
+    $d = strtolower(trim($d));
+    $d = preg_replace('#^https?://#', '', $d);
+    $d = preg_replace('#^www\.#', '', $d);
+    $d = strtok($d, '/?#');
+    $d = rtrim($d, '.');
+    return substr($d, 0, 253);
+}
+
+function isValidDomain($d)
+{
+    return (bool) preg_match('/^(?!-)(?:[a-z0-9\-]{1,63}\.)+[a-z]{2,}$/i', $d);
+}
+
+function getTLD($domain)
+{
+    $p = explode('.', $domain);
+    return count($p) >= 2 ? end($p) : '';
+}
+
+// ---- Time helpers ----
+function timeDiff($date, $future = true)
+{
+    if (!$date) return null;
+    $timestamp = strtotime($date);
+    if (!$timestamp) return null;
+    $diff = $future ? ($timestamp - time()) : (time() - $timestamp);
+    if ($diff < 0 && $future) return 'Expired';
+    $years = floor($diff / (365.25 * 86400));
+    $months = floor(fmod($diff, 365.25 * 86400) / (30.44 * 86400));
+    $days = floor(fmod($diff, 30.44 * 86400) / 86400);
+    $parts = [];
+    if ($years > 0) $parts[] = $years . 'y';
+    if ($months > 0) $parts[] = $months . 'mo';
+    if ($days > 0 || empty($parts)) $parts[] = $days . 'd';
+    return implode(' ', $parts);
+}
+
+function getDomainAge($created) { return $created ? timeDiff($created, false) : null; }
+
+function isDomainAvailable($data)
+{
+    if (!$data) return true;
+    if (!empty($data['status'])) {
+        foreach ($data['status'] as $s) {
+            if (strpos($s, 'available') !== false) return true;
+        }
+    }
+    if (!empty($data['raw']) && preg_match('/No match for|NOT FOUND|is available|No entries found|No data found|Status: free/i', $data['raw'])) {
+        return true;
+    }
+    if (empty($data['expiry']) && empty($data['created']) && empty($data['registrar'])) return true;
+    return false;
 }
 
 // =============================================================
@@ -165,18 +487,9 @@ function extractRDAPEntities($entities, $r)
 function getBootstrapRDAPUrl($domain)
 {
     $tld = getTLD($domain);
-    $cache_file = sys_get_temp_dir() . '/rdap_bootstrap_' . md5($tld) . '.json';
-    $data = null;
-    
-    if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 86400) {
-        $data = json_decode(file_get_contents($cache_file), true);
-    } else {
-        $boot = httpGet("https://data.iana.org/rdap/dns.json", 2);
-        if (!$boot) return null;
-        $data = json_decode($boot, true);
-        @file_put_contents($cache_file, $boot);
-    }
-    
+    $boot = httpGet("https://data.iana.org/rdap/dns.json", 6);
+    if (!$boot) return null;
+    $data = json_decode($boot, true);
     foreach ($data['services'] ?? [] as $svc) {
         $tlds = array_map('strtolower', $svc[0] ?? []);
         if (in_array($tld, $tlds)) {
@@ -242,7 +555,7 @@ function getWhoisServer($domain)
 
 function getIANAWhoisServer($tld)
 {
-    $raw = httpGet("https://www.iana.org/domains/root/db/{$tld}.html", 2);
+    $raw = httpGet("https://www.iana.org/domains/root/db/{$tld}.html", 4);
     if ($raw && preg_match('/WHOIS Server:\s*([a-z0-9.\-]+)/i', $raw, $m)) {
         return trim($m[1]);
     }
@@ -259,7 +572,7 @@ function lookupWHOIS($domain)
     if (strpos($server, 'dk-hostmaster') !== false) $prefix = '--show-handles ';
     if (strpos($server, 'afnic.fr') !== false) $prefix = '-V md2 ';
 
-    $fp = @fsockopen($server, 43, $errno, $errstr, 3);
+    $fp = @fsockopen($server, 43, $errno, $errstr, 6);
     if (!$fp) return null;
     fwrite($fp, $prefix . $domain . "\r\n");
     $raw = '';
@@ -358,47 +671,6 @@ function colorClass($days)
     if ($days <= 90)   return 'warn';
     return 'ok';
 }
-
-// ---- Input cleaning and helpers ----
-function cleanDomain($d)
-{
-    $d = strtolower(trim($d));
-    $d = preg_replace('#^https?://#', '', $d);
-    $d = preg_replace('#^www\.#', '', $d);
-    $d = strtok($d, '/?#');
-    $d = rtrim($d, '.');
-    return substr($d, 0, 253);
-}
-
-function isValidDomain($d)
-{
-    return (bool) preg_match('/^(?!-)(?:[a-z0-9\-]{1,63}\.)+[a-z]{2,}$/i', $d);
-}
-
-function getTLD($domain)
-{
-    $p = explode('.', $domain);
-    return count($p) >= 2 ? end($p) : '';
-}
-
-function timeDiff($date, $future = true)
-{
-    if (!$date) return null;
-    $timestamp = strtotime($date);
-    if (!$timestamp) return null;
-    $diff = $future ? ($timestamp - time()) : (time() - $timestamp);
-    if ($diff < 0 && $future) return 'Expired';
-    $years = floor($diff / (365.25 * 86400));
-    $months = floor(fmod($diff, 365.25 * 86400) / (30.44 * 86400));
-    $days = floor(fmod($diff, 30.44 * 86400) / 86400);
-    $parts = [];
-    if ($years > 0) $parts[] = $years . 'y';
-    if ($months > 0) $parts[] = $months . 'mo';
-    if ($days > 0 || empty($parts)) $parts[] = $days . 'd';
-    return implode(' ', $parts);
-}
-
-function getDomainAge($created) { return $created ? timeDiff($created, false) : null; }
 
 // =============================================================
 // MAIN
@@ -1431,7 +1703,42 @@ pre.raw {
                 </div>
             </div>
 
+            <!-- Status -->
+            <div class="card">
+                <div class="card-head"><span class="ico">🛡️</span><span class="card-title">EPP Status</span></div>
+                <?php
+                    $statuses = array_filter($result['status'] ?? [], function($s) {
+                        return !in_array($s, ['available','registered']);
+                    });
+                ?>
+                <?php if ($statuses): ?>
+                    <div class="badges-wrap">
+                        <?php foreach ($statuses as $s): ?>
+                            <?= statusBadge($s) ?>
+                        <?php endforeach; ?>
+                    </div>
+                <?php else: ?>
+                    <span class="na">No status codes available</span>
+                <?php endif; ?>
 
+                <?php if (!empty($result['nameservers'])): ?>
+                <div style="margin-top: 16px;">
+                    <div class="card-head" style="padding-bottom: 10px; margin-bottom: 12px;">
+                        <span class="ico">🌐</span>
+                        <span class="card-title">Nameservers <span class="count"><?= count($result['nameservers']) ?></span></span>
+                    </div>
+                    <?php foreach ($result['nameservers'] as $ns): ?>
+                    <div class="field">
+                        <span class="field-lbl">NS</span>
+                        <span class="field-val mono">
+                            <?= htmlspecialchars($ns) ?>
+                            <button class="copy-btn" data-copy="<?= htmlspecialchars($ns) ?>" title="Copy">📋</button>
+                        </span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+            </div>
         </div>
 
         <!-- Tabs -->
@@ -1441,6 +1748,7 @@ pre.raw {
                 <?php if (!empty($subdomains)): ?>
                 <button class="tab-btn" data-tab="subs">Subdomains <span class="count"><?= count($subdomains) ?></span></button>
                 <?php endif; ?>
+                <button class="tab-btn" data-tab="contacts">Contacts</button>
                 <?php if (!empty($result['raw'])): ?>
                 <button class="tab-btn" data-tab="raw">Raw WHOIS</button>
                 <?php endif; ?>
@@ -1525,6 +1833,29 @@ pre.raw {
             </div>
             <?php endif; ?>
 
+            <!-- Contacts -->
+            <div class="tab-pane" id="tab-contacts">
+                <div class="grid-3" style="margin-bottom: 0;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px;">👤 Registrant</div>
+                        <div class="field"><span class="field-lbl">Name</span><span class="field-val"><?= !empty($result['registrant']) ? htmlspecialchars($result['registrant']) : '<span class="na">Redacted</span>' ?></span></div>
+                        <div class="field"><span class="field-lbl">Organisation</span><span class="field-val"><?= !empty($result['registrant_org']) ? htmlspecialchars($result['registrant_org']) : '<span class="na">—</span>' ?></span></div>
+                        <div class="field"><span class="field-lbl">Email</span><span class="field-val mono"><?= !empty($result['registrant_email']) ? htmlspecialchars($result['registrant_email']) : '<span class="na">—</span>' ?></span></div>
+                        <div class="field"><span class="field-lbl">Phone</span><span class="field-val mono"><?= !empty($result['registrant_phone']) ? htmlspecialchars($result['registrant_phone']) : '<span class="na">—</span>' ?></span></div>
+                        <div class="field"><span class="field-lbl">Country</span><span class="field-val"><?= !empty($result['registrant_country']) ? htmlspecialchars($result['registrant_country']) : '<span class="na">—</span>' ?></span></div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px;">🔧 Admin Contact</div>
+                        <div class="field"><span class="field-lbl">Name</span><span class="field-val"><?= !empty($result['admin']) ? htmlspecialchars($result['admin']) : '<span class="na">—</span>' ?></span></div>
+                        <div class="field"><span class="field-lbl">Email</span><span class="field-val mono"><?= !empty($result['admin_email']) ? htmlspecialchars($result['admin_email']) : '<span class="na">—</span>' ?></span></div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px;">⚙️ Tech Contact</div>
+                        <div class="field"><span class="field-lbl">Name</span><span class="field-val"><?= !empty($result['tech']) ? htmlspecialchars($result['tech']) : '<span class="na">—</span>' ?></span></div>
+                        <div class="field"><span class="field-lbl">Email</span><span class="field-val mono"><?= !empty($result['tech_email']) ? htmlspecialchars($result['tech_email']) : '<span class="na">—</span>' ?></span></div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Raw WHOIS -->
             <?php if (!empty($result['raw'])): ?>
