@@ -1709,7 +1709,7 @@ pre.raw {
                 <div class="lifecycle-wrap">
                     <div class="lifecycle-step">
                         <span class="step-name">Registered</span>
-                        <span class="step-duration">— Until expiry (variable)</span>
+                        <span class="step-duration">— Until expiry </span>
                     </div>
                     <div class="lifecycle-step">
                         <span class="step-name">Expired</span>
@@ -1717,11 +1717,11 @@ pre.raw {
                     </div>
                     <div class="lifecycle-step">
                         <span class="step-name">Grace Period</span>
-                        <span class="step-duration">— 0–45 days (registrar dependent)</span>
+                        <span class="step-duration">— 0–45 days </span>
                     </div>
                     <div class="lifecycle-step">
                         <span class="step-name">Redemption</span>
-                        <span class="step-duration">— ~30 days (restorable)</span>
+                        <span class="step-duration">— 30 days (restorable)</span>
                     </div>
                     <div class="lifecycle-step">
                         <span class="step-name">Pending Delete</span>
@@ -1729,29 +1729,9 @@ pre.raw {
                     </div>
                     <div class="lifecycle-step">
                         <span class="step-name">Available</span>
-                        <span class="step-duration">— Becomes available for registration</span>
+                        <span class="step-duration">— Becomes available</span>
                     </div>
-                </div>
-
-                <?php if (!empty($result['nameservers'])): ?>
-                <div style="margin-top: 16px;">
-                    <div class="card-head" style="padding-bottom: 10px; margin-bottom: 12px;">
-                        <span class="ico">🌐</span>
-                        <span class="card-title">Nameservers <span class="count"><?= count($result['nameservers']) ?></span></span>
-                    </div>
-                    <?php foreach ($result['nameservers'] as $ns): ?>
-                    <div class="field">
-                        <span class="field-lbl">NS</span>
-                        <span class="field-val mono">
-                            <?= htmlspecialchars($ns) ?>
-                            <button class="copy-btn" data-copy="<?= htmlspecialchars($ns) ?>" title="Copy">📋</button>
-                        </span>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-                <?php endif; ?>
-            </div>
-        </div>
+           
 
         <!-- Tabs -->
         <div class="tabs">
