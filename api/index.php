@@ -1805,6 +1805,30 @@ pre.raw {
                     <span class="chevron">▼</span>
                 </button>
                 <div class="collapse-body open" id="rawBody">
+                    <!-- Contacts Info -->
+                    <div style="margin-bottom: 24px;">
+                        <div class="grid-3" style="margin-bottom: 0;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px;">👤 Registrant</div>
+                                <div class="field"><span class="field-lbl">Name</span><span class="field-val"><?= !empty($result['registrant']) ? htmlspecialchars($result['registrant']) : '<span class="na">Redacted</span>' ?></span></div>
+                                <div class="field"><span class="field-lbl">Organisation</span><span class="field-val"><?= !empty($result['registrant_org']) ? htmlspecialchars($result['registrant_org']) : '<span class="na">—</span>' ?></span></div>
+                                <div class="field"><span class="field-lbl">Email</span><span class="field-val mono"><?= !empty($result['registrant_email']) ? htmlspecialchars($result['registrant_email']) : '<span class="na">—</span>' ?></span></div>
+                                <div class="field"><span class="field-lbl">Phone</span><span class="field-val mono"><?= !empty($result['registrant_phone']) ? htmlspecialchars($result['registrant_phone']) : '<span class="na">—</span>' ?></span></div>
+                                <div class="field"><span class="field-lbl">Country</span><span class="field-val"><?= !empty($result['registrant_country']) ? htmlspecialchars($result['registrant_country']) : '<span class="na">—</span>' ?></span></div>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px;">🔧 Admin Contact</div>
+                                <div class="field"><span class="field-lbl">Name</span><span class="field-val"><?= !empty($result['admin']) ? htmlspecialchars($result['admin']) : '<span class="na">—</span>' ?></span></div>
+                                <div class="field"><span class="field-lbl">Email</span><span class="field-val mono"><?= !empty($result['admin_email']) ? htmlspecialchars($result['admin_email']) : '<span class="na">—</span>' ?></span></div>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px;">⚙️ Tech Contact</div>
+                                <div class="field"><span class="field-lbl">Name</span><span class="field-val"><?= !empty($result['tech']) ? htmlspecialchars($result['tech']) : '<span class="na">—</span>' ?></span></div>
+                                <div class="field"><span class="field-lbl">Email</span><span class="field-val mono"><?= !empty($result['tech_email']) ? htmlspecialchars($result['tech_email']) : '<span class="na">—</span>' ?></span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <hr style="margin: 16px 0; border: none; border-top: 1px solid #ddd;">
                     <pre class="raw"><?= htmlspecialchars($result['raw']) ?></pre>
                 </div>
             </div>
