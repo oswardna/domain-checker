@@ -1737,13 +1737,7 @@ pre.raw {
                 <div style="margin-top: 16px;">
                    
                     <?php foreach ($result['nameservers'] as $ns): ?>
-                    <div class="field">
-                        <span class="field-lbl">NS</span>
-                        <span class="field-val mono">
-                            <?= htmlspecialchars($ns) ?>
-                            <button class="copy-btn" data-copy="<?= htmlspecialchars($ns) ?>" title="Copy">📋</button>
-                        </span>
-                    </div>
+                   
                     <?php endforeach; ?>
                 </div>
                 <?php endif; ?>
