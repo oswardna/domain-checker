@@ -33,7 +33,7 @@ function checkRateLimit($maxRequests = 15, $windowSeconds = 60) {
 }
 
 // ---- HTTP helper ----
-function httpGet($url, $timeout = 6)
+function httpGet($url, $timeout = 3)
 {
     if (!function_exists('curl_init')) return null;
     $ch = curl_init();
@@ -41,12 +41,12 @@ function httpGet($url, $timeout = 6)
         CURLOPT_URL            => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => $timeout,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_SSL_VERIFYHOST => 2,
+        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => 0,
         CURLOPT_USERAGENT      => 'DomainIntelligenceChecker/2.0',
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS      => 3,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_MAXREDIRS      => 0,
         CURLOPT_ENCODING       => '',
     ]);
     $res = curl_exec($ch);
@@ -62,29 +62,6 @@ function getDNSRecords($domain)
     $native = @dns_get_record($domain, DNS_ALL);
     if ($native) {
         $allRecords = array_merge($allRecords, $native);
-    }
-
-    $safeDomain = escapeshellarg($domain);
-    if (function_exists('shell_exec')) {
-        $output = @shell_exec("dig +short +time=2 +tries=1 {$safeDomain} A 2>/dev/null");
-        if ($output) {
-            foreach (array_filter(explode("\n", trim($output))) as $ip) {
-                $ip = trim($ip);
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-                    $allRecords[] = ['type' => 'A', 'ip' => $ip, 'ttl' => 300];
-                }
-            }
-        }
-
-        $output = @shell_exec("dig +short +time=2 +tries=1 {$safeDomain} AAAA 2>/dev/null");
-        if ($output) {
-            foreach (array_filter(explode("\n", trim($output))) as $ip) {
-                $ip = trim($ip);
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-                    $allRecords[] = ['type' => 'AAAA', 'ipv6' => $ip, 'ttl' => 300];
-                }
-            }
-        }
     }
 
     $seen = [];
@@ -137,79 +114,7 @@ function getDNSRecords($domain)
 // ---- Subdomain enumeration ----
 function getSubdomains($domain)
 {
-    $subdomains = [];
-    
-    $common = [
-        'www', 'mail', 'ftp', 'localhost', 'webmail', 'smtp', 'pop', 'ns1', 'webdisk',
-        'ns2', 'cpanel', 'whm', 'autodiscover', 'autoconfig', 'm', 'imap', 'test',
-        'ns', 'blog', 'pop3', 'dev', 'www2', 'admin', 'forum', 'news', 'vpn', 'ns3',
-        'mail2', 'new', 'mysql', 'old', 'lists', 'support', 'mobile', 'mx', 'static',
-        'docs', 'beta', 'shop', 'sql', 'secure', 'demo', 'cp', 'calendar', 'wiki',
-        'web', 'media', 'email', 'images', 'img', 'download', 'dns', 'piwik', 'stats',
-        'dashboard', 'portal', 'manage', 'start', 'info', 'apps', 'app', 'api',
-        'cdn', 'files', 'upload', 'backup', 'db', 'remote', 'ssh', 'git', 'svn',
-        'jenkins', 'jira', 'confluence', 'gitlab', 'monitor', 'status', 'uptime',
-        'chat', 'irc', 'xmpp', 'proxy', 'cache', 'static', 'assets', 'res',
-        'stage', 'staging', 'test', 'testing', 'qa', 'uat', 'dev', 'development',
-        'staging', 'sandbox', 'playground', 'demo', 'preprod', 'prod', 'production',
-        'internal', 'external', 'public', 'private', 'corp', 'corporate', 'company',
-        'portal', 'gateway', 'hub', 'dashboard', 'admin', 'manager', 'control',
-        'ns1', 'ns2', 'ns3', 'ns4', 'dns1', 'dns2', 'dns3',
-        'mx', 'mx1', 'mx2', 'mx3', 'mailserver', 'exchange',
-        'ftp', 'sftp', 'ftps', 'file', 'files',
-        'vpn', 'vpn1', 'vpn2', 'openvpn', 'pptp', 'l2tp',
-        'blog', 'blogs', 'wordpress', 'wp', 'cms',
-        'shop', 'store', 'checkout', 'cart', 'payment', 'payments',
-        'api', 'rest', 'soap', 'graphql', 'swagger', 'docs', 'documentation',
-        'cdn', 'media', 'static', 'assets', 'img', 'images', 'video', 'videos',
-        'download', 'downloads', 'upload', 'uploads', 'share', 'shares',
-        'monitor', 'monitoring', 'status', 'uptime', 'health', 'alerts',
-        'chat', 'irc', 'xmpp', 'slack', 'discord', 'mattermost',
-        'git', 'gitlab', 'github', 'bitbucket', 'svn', 'jenkins', 'jira', 'confluence',
-        'analytics', 'stats', 'metrics', 'logs', 'logging',
-        'backup', 'backups', 'restore', 'recovery',
-        'cache', 'caching', 'proxy', 'proxies', 'loadbalancer', 'lb',
-        'web', 'webserver', 'http', 'https', 'ssl', 'tls',
-        'db', 'database', 'mysql', 'postgres', 'postgresql', 'mongodb', 'redis',
-        'elastic', 'elasticsearch', 'kibana', 'grafana', 'prometheus',
-        'kafka', 'rabbitmq', 'mqtt', 'amqp',
-        'docker', 'k8s', 'kubernetes', 'openshift', 'swarm',
-        'cloud', 'aws', 'azure', 'gcp', 'google', 'amazon',
-        'security', 'firewall', 'ids', 'ips', 'waf',
-        'ad', 'ldap', 'kerberos', 'radius', 'ntp', 'sip', 'voip',
-        'asterisk', 'pbx', 'freepbx', 'elastix',
-        'odoo', 'erp', 'crm', 'sales', 'marketing', 'analytics',
-        'research', 'lab', 'science', 'tech', 'innovation',
-        'learn', 'training', 'courses', 'academy', 'university'
-    ];
-
-    foreach ($common as $sub) {
-        $full = $sub . '.' . $domain;
-        $ip = @gethostbyname($full);
-        if ($ip && $ip !== $full) {
-            $subdomains[$full] = [
-                'source' => 'DNS Brute',
-                'ip' => $ip,
-                'resolved' => true
-            ];
-        }
-    }
-
-    $count = 0;
-    foreach ($subdomains as $host => &$info) {
-        if ($count >= 10) break;
-        if (!empty($info['ip'])) {
-            $asnInfo = getASNInfoFast($info['ip']);
-            if ($asnInfo) {
-                $info['asn'] = $asnInfo['asn'] ?? null;
-                $info['asn_name'] = $asnInfo['name'] ?? null;
-            }
-            $count++;
-        }
-    }
-
-    ksort($subdomains);
-    return $subdomains;
+    return [];
 }
 
 // ---- ASN/ISP lookup ----
@@ -486,9 +391,18 @@ function extractRDAPEntities($entities, $r)
 function getBootstrapRDAPUrl($domain)
 {
     $tld = getTLD($domain);
-    $boot = httpGet("https://data.iana.org/rdap/dns.json", 6);
-    if (!$boot) return null;
-    $data = json_decode($boot, true);
+    $cache_file = sys_get_temp_dir() . '/rdap_bootstrap_' . md5($tld) . '.json';
+    $data = null;
+    
+    if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 86400) {
+        $data = json_decode(file_get_contents($cache_file), true);
+    } else {
+        $boot = httpGet("https://data.iana.org/rdap/dns.json", 2);
+        if (!$boot) return null;
+        $data = json_decode($boot, true);
+        @file_put_contents($cache_file, $boot);
+    }
+    
     foreach ($data['services'] ?? [] as $svc) {
         $tlds = array_map('strtolower', $svc[0] ?? []);
         if (in_array($tld, $tlds)) {
@@ -554,7 +468,7 @@ function getWhoisServer($domain)
 
 function getIANAWhoisServer($tld)
 {
-    $raw = httpGet("https://www.iana.org/domains/root/db/{$tld}.html", 4);
+    $raw = httpGet("https://www.iana.org/domains/root/db/{$tld}.html", 2);
     if ($raw && preg_match('/WHOIS Server:\s*([a-z0-9.\-]+)/i', $raw, $m)) {
         return trim($m[1]);
     }
@@ -571,7 +485,7 @@ function lookupWHOIS($domain)
     if (strpos($server, 'dk-hostmaster') !== false) $prefix = '--show-handles ';
     if (strpos($server, 'afnic.fr') !== false) $prefix = '-V md2 ';
 
-    $fp = @fsockopen($server, 43, $errno, $errstr, 6);
+    $fp = @fsockopen($server, 43, $errno, $errstr, 3);
     if (!$fp) return null;
     fwrite($fp, $prefix . $domain . "\r\n");
     $raw = '';
