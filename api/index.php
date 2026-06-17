@@ -37,253 +37,114 @@ function httpGet($url, $timeout = 3)
 {
     if (!function_exists('curl_init')) return null;
     $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => $timeout,
-        CURLOPT_CONNECTTIMEOUT => 2,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => 0,
-        CURLOPT_USERAGENT      => 'DomainIntelligenceChecker/2.0',
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_MAXREDIRS      => 0,
-        CURLOPT_ENCODING       => '',
-    ]);
-    $res = curl_exec($ch);
-    return $res ?: null;
-}
-
-// ---- DNS lookup ----
-function getDNSRecords($domain)
-{
-    $records = [];
-    $allRecords = [];
-
-    $native = @dns_get_record($domain, DNS_ALL);
-    if ($native) {
-        $allRecords = array_merge($allRecords, $native);
+    <style>
+    :root{
+        --bg: #f7f9fc;
+        --card: #ffffff;
+        --muted: #6b7a8f;
+        --text: #1a1a2e;
+        --accent: #2563eb;
+        --ok: #16a34a;
+        --warn: #d97706;
+        --danger: #dc2626;
+        --glass: rgba(37,99,235,0.06);
+        --radius-lg: 16px;
+        --radius-md: 10px;
+        --gap: 18px;
     }
 
-    $seen = [];
-    foreach ($allRecords as $r) {
-        $type = $r['type'] ?? '';
-        if ($type === 'A' && !empty($r['ip'])) {
-            $key = 'A_' . $r['ip'];
-            if (!isset($seen[$key])) {
-                $seen[$key] = true;
-                $records['A'][] = ['ip' => $r['ip'], 'ttl' => $r['ttl'] ?? 300];
-            }
-        } elseif ($type === 'AAAA' && !empty($r['ipv6'])) {
-            $key = 'AAAA_' . $r['ipv6'];
-            if (!isset($seen[$key])) {
-                $seen[$key] = true;
-                $records['AAAA'][] = ['ip' => $r['ipv6'], 'ttl' => $r['ttl'] ?? 300];
-            }
-        } elseif ($type === 'MX' && !empty($r['target'])) {
-            $key = 'MX_' . $r['target'];
-            if (!isset($seen[$key])) {
-                $seen[$key] = true;
-                $records['MX'][] = ['pri' => $r['pri'] ?? 10, 'target' => $r['target'], 'ttl' => $r['ttl'] ?? 300];
-            }
-        } elseif ($type === 'NS' && !empty($r['target'])) {
-            $key = 'NS_' . $r['target'];
-            if (!isset($seen[$key])) {
-                $seen[$key] = true;
-                $records['NS'][] = ['target' => $r['target'], 'ttl' => $r['ttl'] ?? 300];
-            }
-        } elseif ($type === 'TXT' && !empty($r['txt'])) {
-            $key = 'TXT_' . md5($r['txt']);
-            if (!isset($seen[$key])) {
-                $seen[$key] = true;
-                $records['TXT'][] = ['txt' => $r['txt'], 'ttl' => $r['ttl'] ?? 300];
-            }
-        } elseif ($type === 'CNAME' && !empty($r['target'])) {
-            $records['CNAME'] = ['target' => $r['target'], 'ttl' => $r['ttl'] ?? 300];
-        } elseif ($type === 'SOA') {
-            $records['SOA'] = $r;
-        }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+        font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+        background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;padding:0
     }
+    .container{max-width:1100px;margin:0 auto;padding:28px 18px 56px}
 
-    if (!empty($records['MX'])) {
-        usort($records['MX'], fn($a, $b) => $a['pri'] - $b['pri']);
+    /* Header */
+    .header{background:var(--card);border-radius:var(--radius-lg);padding:36px 20px;margin-bottom:20px;border:1px solid #e9eef4;box-shadow:0 6px 18px rgba(15,23,42,0.03);text-align:center}
+    .logo{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:12px;color:var(--muted);text-transform:uppercase}
+    .logo span{color:var(--accent)}
+    .header h1{font-size:28px;margin:6px 0 2px;font-weight:800}
+    .header h1 span{color:var(--accent)}
+    .header .sub{color:var(--muted);font-size:13px}
+
+    /* Search */
+    .search-wrap{max-width:760px;margin:0 auto 18px}
+    .search-form{display:flex;gap:10px;background:transparent;padding:6px;border-radius:14px}
+    .search-form input{flex:1;padding:14px 16px;border-radius:12px;border:1px solid #e6edf6;background:var(--card);outline:none;font-family:'JetBrains Mono',monospace}
+    .search-form input:focus{box-shadow:0 6px 18px var(--glass);border-color:var(--accent)}
+    .search-form button{background:var(--accent);color:#fff;border:none;padding:12px 20px;border-radius:12px;font-weight:700;cursor:pointer}
+    .search-form button:hover{filter:brightness(.96);transform:translateY(-1px)}
+    .search-hints{display:flex;gap:8px;justify-content:center;margin-top:12px}
+    .hint-chip{background:var(--card);border:1px solid #e6edf6;padding:6px 12px;border-radius:999px;font-family:'JetBrains Mono',monospace}
+
+    /* Alerts */
+    .alert{max-width:760px;margin:12px auto;padding:12px 16px;border-radius:12px;font-weight:600}
+    .alert-error{background:#fff5f5;border:1px solid #fee2e2;color:var(--danger)}
+    .alert-success{background:#f6fffa;border:1px solid #daf7dd;color:var(--ok)}
+
+    /* Results */
+    .results{animation:fadeIn .22s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+    /* Hero */
+    .hero{display:grid;grid-template-columns:1fr 120px;gap:18px;background:var(--card);padding:22px;border-radius:14px;border:1px solid #eef4fb}
+    .domain{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700}
+    .domain .src{font-size:11px;font-weight:700;color:var(--accent);background:#eff6ff;padding:4px 8px;border-radius:8px;margin-left:10px}
+    .domain-meta{color:var(--muted);margin-top:8px;font-size:13px}
+    .expiry{text-align:right}
+    .expiry .num{font-family:'JetBrains Mono',monospace;font-size:36px;font-weight:700}
+    .expiry .lbl{font-size:11px;color:var(--muted);margin-top:4px}
+    .expiry-bar{grid-column:1/-1;margin-top:12px}
+    .track{height:6px;background:#eef4fb;border-radius:8px;overflow:hidden}
+    .fill{height:100%;transition:width .6s ease}
+    .fill-ok{background:var(--ok)}.fill-warn{background:var(--warn)}.fill-danger{background:var(--danger)}.fill-muted{background:#dfe7f0}
+
+    /* Grid & Cards */
+    .grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-bottom:20px}
+    .card{background:var(--card);padding:18px;border-radius:12px;border:1px solid #eef4fb}
+    .card-head{display:flex;align-items:center;gap:8px;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid #f1f6fb}
+    .card-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase}
+
+    .field{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;margin-bottom:10px;align-items:start}
+    .field-lbl{color:var(--muted);font-size:12px}
+    .field-val{font-size:13px;color:var(--text);word-break:break-word}
+    .field-val.mono{font-family:'JetBrains Mono',monospace}
+
+    /* Badges & copy */
+    .badge{display:inline-block;padding:4px 10px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px}
+    .badge-ok{background:#e6f9ef;color:var(--ok)}.badge-default{background:#f7fafc;color:var(--muted);border:1px solid #eef4fb}
+    .copy-btn{background:none;border:none;color:#9aa9b9;cursor:pointer}
+
+    /* Tabs */
+    .tabs{border-radius:12px;overflow:hidden;border:1px solid #eef4fb;background:var(--card)}
+    .tab-bar{display:flex;gap:6px;padding:8px;background:transparent;overflow:auto}
+    .tab-btn{padding:10px 14px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-weight:700;cursor:pointer}
+    .tab-btn.active{background:linear-gradient(180deg,#f0f6ff,transparent);color:var(--accent);box-shadow:0 6px 14px var(--glass)}
+    .tab-pane{display:none;padding:18px}
+    .tab-pane.active{display:block}
+
+    /* DNS */
+    .dns-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .dns-card{background:#fbfdff;border-radius:10px;padding:12px;border:1px solid #eef4fb}
+    .dns-record{font-family:'JetBrains Mono',monospace;padding:6px 0;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f1f6fb}
+
+    /* Raw WHOIS */
+    pre.raw{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;padding:16px;background:#fbfdff;border-radius:10px;max-height:420px;overflow:auto;border:1px solid #eef4fb}
+
+    /* Footer */
+    .footer{color:var(--muted);text-align:center;margin-top:40px;padding-top:18px}
+
+    /* Responsive */
+    @media(max-width:720px){
+        .hero{grid-template-columns:1fr;gap:12px}
+        .expiry{text-align:left}
+        .search-form{flex-direction:column}
+        .search-form input{width:100%}
+        .field{grid-template-columns:1fr}
+        .tab-bar{gap:8px;padding:10px}
     }
-
-    return $records;
-}
-
-// ---- Subdomain enumeration ----
-function getSubdomains($domain)
-{
-    return [];
-}
-
-// ---- ASN/ISP lookup ----
-function getASNInfoFast($ip)
-{
-    if (!filter_var($ip, FILTER_VALIDATE_IP)) return null;
-    
-    $response = httpGet("https://ipinfo.io/{$ip}/json", 3);
-    if (!$response) return null;
-    $data = json_decode($response, true);
-    if (!$data) return null;
-    $info = [];
-    if (!empty($data['org'])) {
-        if (preg_match('/^AS(\d+)\s+(.+)$/', $data['org'], $matches)) {
-            $info['asn'] = 'AS' . $matches[1];
-            $info['name'] = $matches[2];
-        } else {
-            $info['name'] = $data['org'];
-        }
-    }
-    return $info ?: null;
-}
-
-// ---- Extract Registrar URL ----
-function extractRegistrarUrl($raw, $registrar)
-{
-    $url = null;
-    
-    if (!empty($raw)) {
-        $patterns = [
-            '/Registrar URL:\s*(.+)/i',
-            '/Registrar URL\s*:\s*(.+)/i',
-            '/URL of the Registrar:\s*(.+)/i',
-            '/Registrar Website:\s*(.+)/i',
-            '/Registrar Homepage:\s*(.+)/i',
-            '/http[s]?:\/\/[^\s]+/i',
-        ];
-        
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $raw, $matches)) {
-                $found = trim($matches[1]);
-                if (filter_var($found, FILTER_VALIDATE_URL) || strpos($found, 'http') === 0) {
-                    $url = $found;
-                    break;
-                }
-                if (strpos($found, '.') !== false && strpos($found, ' ') === false) {
-                    $url = 'https://' . $found;
-                    break;
-                }
-            }
-        }
-        
-        if (!$url) {
-            preg_match_all('/https?:\/\/[^\s\n\r]+/i', $raw, $links);
-            if (!empty($links[0])) {
-                $registrarKeywords = ['registrar', 'whois', 'domain', 'register', 'nic', 'registry'];
-                foreach ($links[0] as $link) {
-                    $linkLower = strtolower($link);
-                    foreach ($registrarKeywords as $keyword) {
-                        if (strpos($linkLower, $keyword) !== false) {
-                            $url = $link;
-                            break 2;
-                        }
-                    }
-                }
-                if (!$url) {
-                    $url = $links[0][0];
-                }
-            }
-        }
-    }
-    
-    if (!$url && $registrar) {
-        $map = [
-            'godaddy'=>'https://www.godaddy.com',
-            'namecheap'=>'https://www.namecheap.com',
-            'google'=>'https://domains.google',
-            'cloudflare'=>'https://www.cloudflare.com/registrar/',
-            'enom'=>'https://www.enom.com',
-            'network solutions'=>'https://www.networksolutions.com',
-            'ionos'=>'https://www.ionos.com',
-            'name.com'=>'https://www.name.com',
-            'hover'=>'https://www.hover.com',
-            'gandi'=>'https://www.gandi.net',
-            'ovh'=>'https://www.ovh.com',
-            'markmonitor'=>'https://www.markmonitor.com',
-            'dynadot'=>'https://www.dynadot.com',
-            'porkbun'=>'https://porkbun.com',
-            'bluehost'=>'https://www.bluehost.com',
-            'hostgator'=>'https://www.hostgator.com',
-            'dreamhost'=>'https://www.dreamhost.com',
-            'register.com'=>'https://www.register.com',
-            'eurodns'=>'https://www.eurodns.com',
-            'csc'=>'https://www.cscglobal.com',
-            'safenames'=>'https://www.safenames.net',
-            'key-systems'=>'https://www.key-systems.net',
-            'internet.bs'=>'https://internetbs.net',
-        ];
-        $lower = strtolower($registrar);
-        foreach ($map as $key => $mapUrl) {
-            if (strpos($lower, $key) !== false) return $mapUrl;
-        }
-    }
-    
-    return $url;
-}
-
-// ---- Input cleaning ----
-function cleanDomain($d)
-{
-    $d = strtolower(trim($d));
-    $d = preg_replace('#^https?://#', '', $d);
-    $d = preg_replace('#^www\.#', '', $d);
-    $d = strtok($d, '/?#');
-    $d = rtrim($d, '.');
-    return substr($d, 0, 253);
-}
-
-function isValidDomain($d)
-{
-    return (bool) preg_match('/^(?!-)(?:[a-z0-9\-]{1,63}\.)+[a-z]{2,}$/i', $d);
-}
-
-function getTLD($domain)
-{
-    $p = explode('.', $domain);
-    return count($p) >= 2 ? end($p) : '';
-}
-
-// ---- Time helpers ----
-function timeDiff($date, $future = true)
-{
-    if (!$date) return null;
-    $timestamp = strtotime($date);
-    if (!$timestamp) return null;
-    $diff = $future ? ($timestamp - time()) : (time() - $timestamp);
-    if ($diff < 0 && $future) return 'Expired';
-    $years = floor($diff / (365.25 * 86400));
-    $months = floor(fmod($diff, 365.25 * 86400) / (30.44 * 86400));
-    $days = floor(fmod($diff, 30.44 * 86400) / 86400);
-    $parts = [];
-    if ($years > 0) $parts[] = $years . 'y';
-    if ($months > 0) $parts[] = $months . 'mo';
-    if ($days > 0 || empty($parts)) $parts[] = $days . 'd';
-    return implode(' ', $parts);
-}
-
-function getDomainAge($created) { return $created ? timeDiff($created, false) : null; }
-
-function isDomainAvailable($data)
-{
-    if (!$data) return true;
-    if (!empty($data['status'])) {
-        foreach ($data['status'] as $s) {
-            if (strpos($s, 'available') !== false) return true;
-        }
-    }
-    if (!empty($data['raw']) && preg_match('/No match for|NOT FOUND|is available|No entries found|No data found|Status: free/i', $data['raw'])) {
-        return true;
-    }
-    if (empty($data['expiry']) && empty($data['created']) && empty($data['registrar'])) return true;
-    return false;
-}
-
-// =============================================================
-// RDAP
-// =============================================================
-function lookupRDAP($domain)
-{
+    </style>
     $urls = [
         "https://rdap.org/domain/" . urlencode($domain),
         "https://rdap.iana.org/domain/" . urlencode($domain),
