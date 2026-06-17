@@ -50,7 +50,6 @@ function httpGet($url, $timeout = 6)
         CURLOPT_ENCODING       => '',
     ]);
     $res = curl_exec($ch);
-    curl_close($ch);
     return $res ?: null;
 }
 
